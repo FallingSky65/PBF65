@@ -5,47 +5,35 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>PBF65</title>
+        <link rel="icon" href="data:," />
         <style>
             * {
                 padding: 0;
                 margin: 0;
+                box-sizing: border-box;
             }
+            html,
             body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
                 background-color: white;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-            }
-            div {
-                width: 1024px;
-                height: 1024px;
-
-                position: relative;
+                padding: 24px;
             }
             canvas {
                 display: block;
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                right: 0;
-                left: 0;
-                margin: auto;
-                background-color: black;
-                // max-width: 800px;
                 width: 100%;
                 height: 100%;
+                background-color: black;
             }
         </style>
     </head>
 
     <body id="PBF65">
-        <div>
-            <canvas id="canvas"></canvas>
-            <script type="module">
-                import init from "./pkg/PBF65.js";
-                init().then(() => console.log("WASM Loaded"));
-            </script>
-        </div>
+        <canvas id="canvas"></canvas>
+        <script type="module">
+            import init from "./pkg/PBF65.js";
+            init().then(() => console.log("WASM Loaded"));
+        </script>
     </body>
 </html>

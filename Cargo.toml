@@ -8,16 +8,25 @@ strip = true
 
 [dependencies]
 anyhow = "1.0.104"
+bytemuck = { version = "1.25.2", features = ["derive"] }
+cgmath = "0.18.0"
 env_logger = "0.11.11"
+getrandom = "0.4.3"
+instant = "0.1.13"
 log = "0.4.35"
 pollster = "1.0.1"
+rand = "0.10.4"
+rand_distr = "0.6.0"
 wgpu = "30.0.1"
+wgpu_text = "30.0.1"
 winit = "0.30.13"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.1.0"
-wgpu = { version = "30.0.1", features = ["webgl"]}
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
+instant = { version = "0.1.13", features = ["wasm-bindgen"] }
+wgpu = { version = "30.0.1", features = ["webgpu"]}
 wasm-bindgen = "0.2.130"
 wasm-bindgen-futures = "0.4.80"
 web-sys = { version = "0.3.107", features = [

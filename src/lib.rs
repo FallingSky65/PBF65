@@ -17,7 +17,17 @@ use winit::{application::ApplicationHandler, event::{DeviceEvent, KeyEvent, Wind
 
 const PARAMS: SimulationParameters = SimulationParameters {
     n: 100,
+    m: 64,
+    num_cells: 100,
     dt: 1.0/60.0,
+    h: 0.1,
+    rho0: 0.25,
+    cfm_epsilon: 0.001,
+    s_corr_k: 0.1,
+    s_corr_n: 4.0,
+    gravity: 5.0,
+    vorticity_eps: 0.0,
+    xsph_c: 0.01,
 };
 
 pub struct State {
@@ -402,7 +412,7 @@ impl State {
         self.queue.submit([encoder.finish()]);
     }
 
-    pub fn render(&mut self) -> anyhow::Result<()> {
+    pub fn render(&mut self, stats: &AppStats) -> anyhow::Result<()> {
         self.window.request_redraw();
 
         if !self.is_surface_configured {
@@ -482,8 +492,8 @@ impl State {
             render_pass.draw(0..24, 0..1);
 
             let hud_text = format!(
-                "PBF65\n{} x {}",
-                self.config.width, self.config.height
+                "PBF65\n{} x {}\n{} particles\nFPS: {:.2}",
+                self.config.width, self.config.height, self.simulation.params.n, stats.avg_fps()
             );
             let section = wgpu_text::glyph_brush::Section::default()
                 .add_text(
@@ -505,11 +515,83 @@ impl State {
     }
 }
 
+pub struct AppStats {
+    cpu_times: Vec<instant::Duration>,
+    gpu_times: Vec<instant::Duration>,
+    frame_times: Vec<instant::Duration>,
+    index: usize,
+    gpu_index: usize,
+    count: usize,
+    last_frame: instant::Instant,
+}
+
+#[allow(unused)]
+impl AppStats {
+    fn new(history: usize) -> Self {
+        Self {
+            cpu_times: vec![instant::Duration::ZERO; history],
+            gpu_times: vec![instant::Duration::ZERO; history],
+            frame_times: vec![instant::Duration::ZERO; history],
+            index: 0,
+            gpu_index: 0,
+            count: 0,
+            last_frame: instant::Instant::now(),
+        }
+    }
+
+    fn push(&mut self, cpu: instant::Duration, gpu: Vec<instant::Duration>) -> instant::Duration {
+        self.cpu_times[self.index] = cpu;
+        for gpu_time in gpu {
+            self.gpu_times[self.gpu_index] = gpu_time;
+            self.gpu_index = (self.gpu_index + 1) % self.gpu_times.len();
+        }
+        
+        let frame_time = self.last_frame.elapsed();
+        self.last_frame = instant::Instant::now();
+
+        self.frame_times[self.index] = frame_time;
+
+        self.index = (self.index + 1) % self.cpu_times.len();
+        self.count = self.count.max(self.index).min(self.cpu_times.len());
+
+        frame_time
+    }
+
+    fn avg_cpu(&self) -> instant::Duration {
+        self.avg(&self.cpu_times)
+    }
+
+    fn avg_gpu(&self) -> instant::Duration {
+        self.avg(&self.gpu_times)
+    }
+
+    fn avg_frame(&self) -> instant::Duration {
+        self.avg(&self.frame_times)
+    }
+
+    fn avg_fps(&self) -> f64 {
+        let avg = self.avg(&self.frame_times);
+        if avg.is_zero() {
+            0.0
+        } else {
+            1.0 / avg.as_secs_f64()
+        }
+    }
+
+    fn avg(&self, buf: &[instant::Duration]) -> instant::Duration {
+        let filled = &buf[..self.count];
+        if filled.is_empty() {
+            return instant::Duration::ZERO;
+        }
+        filled.iter().sum::<instant::Duration>() / filled.len() as u32
+    }
+}
+
 pub struct App {
     #[cfg(target_arch = "wasm32")]
     proxy: Option<winit::event_loop::EventLoopProxy<State>>,
     state: Option<State>,
-    last_time: instant::Instant,
+    stats: AppStats,
 }
 
 impl App {
@@ -520,7 +602,7 @@ impl App {
             state: None,
             #[cfg(target_arch = "wasm32")]
             proxy,
-            last_time: instant::Instant::now(),
+            stats: AppStats::new(128),
         }
     }   
 }
@@ -594,11 +676,9 @@ impl ApplicationHandler<State> for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
-                let now = instant::Instant::now();
-                let dt = now - self.last_time;
-                self.last_time = now;
+                let dt = self.stats.push(instant::Duration::ZERO, vec![]);
                 state.update(dt);
-                match state.render() {
+                match state.render(&self.stats) {
                     Ok(_) => {}
                     Err(e) => {
                         log::error!("{e}");
